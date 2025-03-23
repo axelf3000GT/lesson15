@@ -1,0 +1,108 @@
+import org.junit.jupiter.api.BeforeAll;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+import io.github.bonigarcia.wdm.WebDriverManager;
+
+import java.time.Duration;
+import java.util.List;
+
+public class TestClasses {
+    static WebDriver driver;
+
+    @BeforeAll
+    static void setupClass() {
+        WebDriverManager.chromedriver().setup();
+        driver = new ChromeDriver();
+    }
+
+
+    @BeforeClass
+    public void setUp() {
+        driver = new ChromeDriver();
+        driver.manage().window().maximize();
+        driver.get("https://www.mts.by");
+
+        List<WebElement> agreeButton = getAgreeButton();
+        if (!agreeButton.isEmpty()) {
+            agreeButton.get(0).click();
+        }
+    }
+
+    public List<WebElement> getAgreeButton() {
+        return driver.findElements(By.xpath("//button[contains(text(), 'Принять')]"));
+    }
+
+    @Test(priority = 1)
+    public void testBlockTitle() {
+        WebElement blockTitle = driver.findElement(By.xpath("//*[@class='pay__wrapper']/h2"));
+        Assert.assertEquals(blockTitle.getText(), "Онлайн пополнение\nбез комиссии", "Название блока не совпадает");
+    }
+
+    @Test(priority = 2)
+    public void testPaymentLogos() {
+        List<WebElement> logos = driver.findElements(By.xpath("//*[@class='pay__partners']//ul//li"));
+        Assert.assertFalse(logos.isEmpty(), "Логотипы платёжных систем отсутствуют");
+    }
+
+    @Test(priority = 3)
+    public void testDetailsLink() {
+        WebElement detailsLink = driver.findElement(By.xpath("//a[contains(text(), 'Подробнее о сервисе')]"));
+        detailsLink.click();
+        Assert.assertTrue(driver.getCurrentUrl().contains("https://www.mts.by/help/poryadok-oplaty-i-bezopasnost-internet-platezhey/"), "Ссылка 'Подробнее о сервисе' не работает");
+        driver.navigate().back();
+    }
+
+    @Test(priority = 4)
+    public void testContinueButton() {
+
+        WebElement selectNowElement = driver.findElement(By.className("select__now"));
+        selectNowElement.click();
+        List<WebElement> selectItems = driver.findElements(By.className("select__item"));
+        for (WebElement item : selectItems) {
+            WebElement optionElement = item.findElement(By.className("select__option"));
+            if (optionElement.getText().equals("Услуги связи")) {
+                item.click();
+                break;
+            }
+        }
+
+        WebElement phoneInput = driver.findElement(By.xpath("//input[@id='connection-phone']"));
+        phoneInput.sendKeys("297777777");
+
+        WebElement sumInput = driver.findElement(By.xpath("//input[@id='connection-sum']"));
+        sumInput.sendKeys("10");
+
+        WebElement emailInput = driver.findElement(By.xpath("//input[@id='connection-email']"));
+        emailInput.sendKeys("7999967@gmail.com");
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        WebElement continueButton = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@class='pay__forms']//form[contains(@class, 'pay-form') and contains(@class, 'opened')]//button[contains(@class, 'button__default') and text()='Продолжить']")));
+        wait.until(ExpectedConditions.elementToBeClickable(continueButton));
+
+        Assert.assertTrue(continueButton.isDisplayed() || continueButton.isEnabled(),"Кнопка не видима или недоступна для взаимодействия");
+        continueButton.click();
+
+        WebElement iframe = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("iframe.bepaid-iframe")));
+
+        Assert.assertTrue(iframe.isDisplayed(), "Iframe не отображается на странице.");
+
+        String expectedSrc = "https://checkout.bepaid.by/widget_v2/index.html";
+        String actualSrc = iframe.getAttribute("src");
+        Assert.assertEquals(actualSrc, expectedSrc, "URL iframe не соответствует ожидаемому.");
+    }
+
+    @AfterClass
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
